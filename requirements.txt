@@ -1,0 +1,17 @@
+fastapi==0.115.12
+uvicorn==0.34.0
+pydantic==2.10.5
+httpx==0.28.1
+
+# ML/Data Science
+scikit-learn==1.8.0
+pandas==2.3.3
+numpy==2.4.0
+joblib==1.5.3
+
+# Database (for accessing shipment data if needed)
+aiosqlite==0.21.0
+sqlalchemy==2.0.37
+
+# Utilities
+python-dotenv==1.0.1

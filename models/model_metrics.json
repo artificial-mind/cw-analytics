@@ -1,0 +1,22 @@
+{
+  "accuracy": 0.815,
+  "precision": 1.0,
+  "recall": 0.4126984126984127,
+  "f1_score": 0.5842696629213483,
+  "cv_mean": 0.868,
+  "cv_std": 0.016000000000000014,
+  "feature_importance": {
+    "risk_flag": 0.6479612068046038,
+    "base_delay_rate": 0.04648104183582701,
+    "month": 0.04146358669586208,
+    "carrier_reliability": 0.03545287760368602,
+    "transit_days": 0.03498629001949649,
+    "destination_port_encoded": 0.03445079791441319,
+    "carrier_name_encoded": 0.030926205933618927,
+    "seasonal_factor": 0.030714503624517334,
+    "day_of_week": 0.029445961863974447,
+    "container_type_encoded": 0.026600331086425084,
+    "weekday_factor": 0.02126192330208558,
+    "origin_port_encoded": 0.02025527331549001
+  }
+}

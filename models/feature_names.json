@@ -1,0 +1,14 @@
+[
+  "origin_port_encoded",
+  "destination_port_encoded",
+  "carrier_name_encoded",
+  "carrier_reliability",
+  "month",
+  "day_of_week",
+  "transit_days",
+  "container_type_encoded",
+  "risk_flag",
+  "base_delay_rate",
+  "seasonal_factor",
+  "weekday_factor"
+]
