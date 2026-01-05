@@ -1,0 +1,348 @@
+"""
+Document Generator Service
+Generates logistics documents (BOL, Invoice, Packing List) as PDFs
+"""
+
+import os
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, Any, Optional, List
+import logging
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from weasyprint import HTML, CSS
+from weasyprint.text.fonts import FontConfiguration
+
+logger = logging.getLogger(__name__)
+
+
+class DocumentGenerator:
+    """Generate logistics documents from templates."""
+    
+    def __init__(self):
+        """Initialize the document generator with templates."""
+        # Setup paths
+        self.base_dir = Path(__file__).parent
+        self.templates_dir = self.base_dir / "templates"
+        self.styles_dir = self.base_dir / "styles"
+        self.output_dir = Path(__file__).parent.parent.parent / "generated_documents"
+        
+        # Create output directory if it doesn't exist
+        self.output_dir.mkdir(exist_ok=True)
+        
+        # Setup Jinja2 environment
+        self.env = Environment(
+            loader=FileSystemLoader(str(self.templates_dir)),
+            autoescape=select_autoescape(['html', 'xml'])
+        )
+        
+        # Setup WeasyPrint font configuration
+        self.font_config = FontConfiguration()
+        
+        logger.info(f"DocumentGenerator initialized. Templates: {self.templates_dir}, Output: {self.output_dir}")
+    
+    def generate_bill_of_lading(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate a Bill of Lading PDF.
+        
+        Args:
+            data: Dictionary containing BOL data
+                Required fields:
+                - shipment_id
+                - carrier_name
+                - shipper_name, shipper_address, shipper_city, shipper_country
+                - consignee_name, consignee_address, consignee_city, consignee_country
+                - containers (list of container dicts)
+                - vessel_name, voyage_number
+                - port_of_loading, port_of_discharge
+        
+        Returns:
+            dict with success, file_path, document_url, error
+        """
+        try:
+            logger.info(f"Generating Bill of Lading for shipment {data.get('shipment_id')}")
+            
+            # Add generation metadata
+            data['generation_date'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            data['document_number'] = data.get('document_number', f"BOL-{data['shipment_id']}")
+            data['issue_date'] = data.get('issue_date', datetime.now().strftime("%Y-%m-%d"))
+            
+            # Add currency symbol
+            currency_symbols = {'USD': '$', 'EUR': '€', 'GBP': '£', 'CNY': '¥'}
+            data['currency_symbol'] = currency_symbols.get(data.get('currency', 'USD'), '$')
+            
+            # Calculate totals from containers
+            if 'containers' in data:
+                data['total_containers'] = len(data['containers'])
+                data['total_packages'] = sum(c.get('package_count', 0) for c in data['containers'])
+                data['total_weight'] = sum(c.get('weight', 0) for c in data['containers'])
+                data['total_volume'] = sum(c.get('volume', 0) for c in data['containers'])
+            
+            # Set defaults
+            data.setdefault('bol_type', 'ORIGINAL')
+            data.setdefault('is_negotiable', True)
+            data.setdefault('carrier_address', 'Address not provided')
+            data.setdefault('booking_number', 'N/A')
+            data.setdefault('shipper_tax_id', 'N/A')
+            data.setdefault('consignee_tax_id', 'N/A')
+            data.setdefault('place_of_receipt', data.get('port_of_loading', 'N/A'))
+            data.setdefault('place_of_delivery', data.get('port_of_discharge', 'N/A'))
+            data.setdefault('place_of_issue', data.get('port_of_loading', 'N/A'))
+            data.setdefault('freight_terms', 'PREPAID')
+            data.setdefault('payment_terms', 'N/A')
+            data.setdefault('number_of_originals', '3')
+            data.setdefault('shipped_on_board_date', data.get('issue_date'))
+            
+            # Notify party defaults
+            data.setdefault('notify_party_name', data.get('consignee_name'))
+            data.setdefault('notify_party_address', data.get('consignee_address'))
+            data.setdefault('notify_party_city', data.get('consignee_city'))
+            data.setdefault('notify_party_country', data.get('consignee_country'))
+            data.setdefault('notify_party_phone', 'N/A')
+            data.setdefault('notify_party_email', 'N/A')
+            
+            # Generate PDF
+            template = self.env.get_template('bill_of_lading.html')
+            html_content = template.render(**data)
+            
+            # Save to file
+            filename = f"BOL_{data['shipment_id']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            file_path = self.output_dir / filename
+            
+            HTML(string=html_content, base_url=str(self.base_dir)).write_pdf(
+                file_path,
+                stylesheets=[CSS(str(self.styles_dir / 'document.css'))],
+                font_config=self.font_config
+            )
+            
+            logger.info(f"BOL generated successfully: {file_path}")
+            
+            return {
+                "success": True,
+                "document_type": "BILL_OF_LADING",
+                "document_number": data['document_number'],
+                "file_path": str(file_path),
+                "document_url": f"/documents/{filename}",
+                "file_size_kb": round(file_path.stat().st_size / 1024, 2)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating BOL: {str(e)}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def generate_commercial_invoice(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate a Commercial Invoice PDF.
+        
+        Args:
+            data: Dictionary containing invoice data
+                Required fields:
+                - shipment_id
+                - invoice_number
+                - exporter_name, exporter_address, exporter_city, exporter_country
+                - importer_name, importer_address, importer_city, importer_country
+                - line_items (list of item dicts with description, quantity, unit_price, hs_code)
+        
+        Returns:
+            dict with success, file_path, document_url, error
+        """
+        try:
+            logger.info(f"Generating Commercial Invoice {data.get('invoice_number')}")
+            
+            # Add generation metadata
+            data['generation_date'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            data['invoice_date'] = data.get('invoice_date', datetime.now().strftime("%Y-%m-%d"))
+            
+            # Add currency symbol
+            currency_symbols = {'USD': '$', 'EUR': '€', 'GBP': '£', 'CNY': '¥'}
+            data['currency'] = data.get('currency', 'USD')
+            data['currency_symbol'] = currency_symbols.get(data['currency'], '$')
+            
+            # Calculate line item totals
+            if 'line_items' in data:
+                for item in data['line_items']:
+                    item['total_value'] = item['quantity'] * item['unit_price']
+                
+                # Calculate financial totals
+                subtotal = sum(item['total_value'] for item in data['line_items'])
+                data['subtotal'] = subtotal
+                
+                discount_pct = data.get('discount_percentage', 0)
+                discount_amt = (subtotal * discount_pct) / 100
+                data['discount_amount'] = discount_amt
+                
+                freight = data.get('freight_charges', 0)
+                insurance = data.get('insurance_charges', 0)
+                
+                vat_pct = data.get('vat_percentage', 0)
+                vat_amt = ((subtotal - discount_amt + freight + insurance) * vat_pct) / 100
+                data['vat_amount'] = vat_amt
+                
+                grand_total = subtotal - discount_amt + freight + insurance + vat_amt
+                data['grand_total'] = grand_total
+                
+                # Weight totals
+                data['total_gross_weight'] = sum(
+                    item.get('weight', 0) * item['quantity'] 
+                    for item in data['line_items']
+                )
+                data['total_net_weight'] = data['total_gross_weight'] * 0.95  # Assume 5% packaging
+                data['total_packages'] = len(data['line_items'])
+                
+                data['declared_customs_value'] = grand_total
+            
+            # Set defaults
+            data.setdefault('po_number', 'N/A')
+            data.setdefault('incoterms', 'FOB')
+            data.setdefault('payment_terms', 'NET 30')
+            data.setdefault('country_of_origin', data.get('exporter_country', 'N/A'))
+            data.setdefault('export_date', data.get('invoice_date'))
+            data.setdefault('exporter_state', '')
+            data.setdefault('exporter_postal_code', '')
+            data.setdefault('exporter_tax_id', 'N/A')
+            data.setdefault('exporter_phone', 'N/A')
+            data.setdefault('importer_state', '')
+            data.setdefault('importer_postal_code', '')
+            data.setdefault('importer_tax_id', 'N/A')
+            data.setdefault('importer_phone', 'N/A')
+            data.setdefault('package_type', 'CARTONS')
+            data.setdefault('payment_instructions', False)
+            data.setdefault('notes', '')
+            data.setdefault('payment_due_days', 30)
+            data.setdefault('late_payment_interest_rate', 1.5)
+            data.setdefault('governing_law', data.get('exporter_country', 'N/A'))
+            
+            # Generate PDF
+            template = self.env.get_template('commercial_invoice.html')
+            html_content = template.render(**data)
+            
+            # Save to file
+            filename = f"INV_{data['invoice_number']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            file_path = self.output_dir / filename
+            
+            HTML(string=html_content, base_url=str(self.base_dir)).write_pdf(
+                file_path,
+                stylesheets=[CSS(str(self.styles_dir / 'document.css'))],
+                font_config=self.font_config
+            )
+            
+            logger.info(f"Commercial Invoice generated successfully: {file_path}")
+            
+            return {
+                "success": True,
+                "document_type": "COMMERCIAL_INVOICE",
+                "invoice_number": data['invoice_number'],
+                "file_path": str(file_path),
+                "document_url": f"/documents/{filename}",
+                "file_size_kb": round(file_path.stat().st_size / 1024, 2),
+                "total_amount": data['grand_total'],
+                "currency": data['currency']
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating invoice: {str(e)}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def generate_packing_list(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate a Packing List PDF.
+        
+        Args:
+            data: Dictionary containing packing list data
+                Required fields:
+                - shipment_id
+                - packing_list_number
+                - shipper_name, shipper_address, shipper_city, shipper_country
+                - consignee_name, consignee_address, consignee_city, consignee_country
+                - packages (list of package dicts with items, dimensions, weights)
+        
+        Returns:
+            dict with success, file_path, document_url, error
+        """
+        try:
+            logger.info(f"Generating Packing List {data.get('packing_list_number')}")
+            
+            # Add generation metadata
+            data['generation_date'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            data['issue_date'] = data.get('issue_date', datetime.now().strftime("%Y-%m-%d"))
+            
+            # Calculate totals from packages
+            if 'packages' in data:
+                data['total_packages'] = len(data['packages'])
+                data['total_gross_weight'] = sum(p.get('gross_weight', 0) for p in data['packages'])
+                data['total_net_weight'] = sum(p.get('net_weight', 0) for p in data['packages'])
+                data['total_volume'] = sum(p.get('volume', 0) for p in data['packages'])
+                
+                # Count total items across all packages
+                total_items = 0
+                for package in data['packages']:
+                    if 'items' in package:
+                        for item in package['items']:
+                            total_items += item.get('quantity', 0)
+                data['total_items'] = total_items
+            
+            # Set defaults
+            data.setdefault('reference_number', data.get('shipment_id', 'N/A'))
+            data.setdefault('shipper_contact', 'N/A')
+            data.setdefault('consignee_contact', 'N/A')
+            data.setdefault('invoice_number', 'N/A')
+            data.setdefault('bl_number', 'N/A')
+            data.setdefault('container_number', 'N/A')
+            data.setdefault('port_of_loading', 'N/A')
+            data.setdefault('port_of_discharge', 'N/A')
+            data.setdefault('special_instructions', '')
+            data.setdefault('marks_and_numbers', '')
+            data.setdefault('is_fragile', False)
+            data.setdefault('requires_temperature_control', False)
+            data.setdefault('temperature_range', 'N/A')
+            
+            # Generate PDF
+            template = self.env.get_template('packing_list.html')
+            html_content = template.render(**data)
+            
+            # Save to file
+            filename = f"PKG_{data['packing_list_number']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            file_path = self.output_dir / filename
+            
+            HTML(string=html_content, base_url=str(self.base_dir)).write_pdf(
+                file_path,
+                stylesheets=[CSS(str(self.styles_dir / 'document.css'))],
+                font_config=self.font_config
+            )
+            
+            logger.info(f"Packing List generated successfully: {file_path}")
+            
+            return {
+                "success": True,
+                "document_type": "PACKING_LIST",
+                "packing_list_number": data['packing_list_number'],
+                "file_path": str(file_path),
+                "document_url": f"/documents/{filename}",
+                "file_size_kb": round(file_path.stat().st_size / 1024, 2),
+                "total_packages": data['total_packages'],
+                "total_weight_kg": data['total_gross_weight']
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating packing list: {str(e)}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+
+# Singleton instance
+_generator = None
+
+def get_document_generator() -> DocumentGenerator:
+    """Get or create the document generator instance."""
+    global _generator
+    if _generator is None:
+        _generator = DocumentGenerator()
+    return _generator

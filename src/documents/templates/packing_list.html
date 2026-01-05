@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Packing List - {{ packing_list_number }}</title>
+    <link rel="stylesheet" href="../styles/document.css">
+    <style>
+        .packing-header {
+            background-color: #34495e;
+            color: white;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .package-details {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="packing-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-size: 24px; font-weight: bold;">PACKING LIST</div>
+                <div style="font-size: 11px; opacity: 0.9;">Detailed Cargo Manifest</div>
+            </div>
+            <div style="text-align: right;">
+                <strong>Packing List #:</strong> {{ packing_list_number }}<br>
+                <strong>Date:</strong> {{ issue_date }}<br>
+                <strong>Ref:</strong> {{ reference_number }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Shipper / Consignee Info -->
+    <div class="info-grid">
+        <div class="info-box">
+            <div class="info-label">Shipper</div>
+            <div class="info-value">
+                <strong>{{ shipper_name }}</strong><br>
+                {{ shipper_address }}<br>
+                {{ shipper_city }}, {{ shipper_country }}<br>
+                Contact: {{ shipper_contact }}
+            </div>
+        </div>
+        <div class="info-box">
+            <div class="info-label">Consignee</div>
+            <div class="info-value">
+                <strong>{{ consignee_name }}</strong><br>
+                {{ consignee_address }}<br>
+                {{ consignee_city }}, {{ consignee_country }}<br>
+                Contact: {{ consignee_contact }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Shipment Reference -->
+    <div class="section">
+        <div class="section-title">Shipment Reference</div>
+        <div class="info-grid">
+            <div class="info-box">
+                <div class="info-label">Shipment ID</div>
+                <div class="info-value">{{ shipment_id }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Invoice Number</div>
+                <div class="info-value">{{ invoice_number }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">B/L Number</div>
+                <div class="info-value">{{ bl_number }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Container Number</div>
+                <div class="info-value">{{ container_number }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Port of Loading</div>
+                <div class="info-value">{{ port_of_loading }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Port of Discharge</div>
+                <div class="info-value">{{ port_of_discharge }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Package Details -->
+    <div class="section">
+        <div class="section-title">Detailed Package Contents</div>
+        {% for package in packages %}
+        <div class="package-details">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 2px solid #ddd;">
+                <div>
+                    <strong style="font-size: 12px; color: #2c3e50;">Package {{ loop.index }} of {{ total_packages }}</strong><br>
+                    <span style="font-size: 10px; color: #666;">Package ID: {{ package.package_id }}</span>
+                </div>
+                <div style="text-align: right;">
+                    <span style="font-size: 10px; color: #666;">Type:</span> <strong>{{ package.package_type }}</strong><br>
+                    <span style="font-size: 10px; color: #666;">Marks:</span> <strong>{{ package.marks }}</strong>
+                </div>
+            </div>
+            
+            <!-- Items in Package -->
+            <table class="table" style="margin-bottom: 10px;">
+                <thead>
+                    <tr>
+                        <th style="width: 8%;">Item</th>
+                        <th style="width: 40%;">Description</th>
+                        <th style="width: 13%;">Part/SKU</th>
+                        <th style="width: 10%;">Quantity</th>
+                        <th style="width: 13%;">Unit Weight (KG)</th>
+                        <th style="width: 16%;">Total Weight (KG)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in package.items %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ item.description }}</td>
+                        <td><small>{{ item.part_number }}</small></td>
+                        <td style="text-align: right;">{{ item.quantity }}</td>
+                        <td style="text-align: right;">{{ "%.3f"|format(item.unit_weight) }}</td>
+                        <td style="text-align: right;"><strong>{{ "%.3f"|format(item.total_weight) }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <!-- Package Dimensions and Weight -->
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background-color: white; padding: 10px; border-radius: 3px;">
+                <div>
+                    <div class="info-label">Dimensions (cm)</div>
+                    <div class="info-value">{{ package.length }} × {{ package.width }} × {{ package.height }}</div>
+                </div>
+                <div>
+                    <div class="info-label">Volume (CBM)</div>
+                    <div class="info-value">{{ "%.4f"|format(package.volume) }}</div>
+                </div>
+                <div>
+                    <div class="info-label">Gross Weight (KG)</div>
+                    <div class="info-value">{{ "%.2f"|format(package.gross_weight) }}</div>
+                </div>
+                <div>
+                    <div class="info-label">Net Weight (KG)</div>
+                    <div class="info-value">{{ "%.2f"|format(package.net_weight) }}</div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Summary Totals -->
+    <div class="section">
+        <div class="section-title">Shipment Summary</div>
+        <div style="background-color: #ecf0f1; padding: 20px; border-radius: 5px;">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 32px; font-weight: bold; color: #2c3e50;">{{ total_packages }}</div>
+                    <div style="font-size: 12px; color: #7f8c8d; margin-top: 5px;">Total Packages</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 32px; font-weight: bold; color: #2c3e50;">{{ "%.2f"|format(total_gross_weight) }}</div>
+                    <div style="font-size: 12px; color: #7f8c8d; margin-top: 5px;">Gross Weight (KG)</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 32px; font-weight: bold; color: #2c3e50;">{{ "%.4f"|format(total_volume) }}</div>
+                    <div style="font-size: 12px; color: #7f8c8d; margin-top: 5px;">Total Volume (CBM)</div>
+                </div>
+            </div>
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #bdc3c7;">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                    <div>
+                        <div class="info-label">Total Net Weight</div>
+                        <div class="info-value">{{ "%.2f"|format(total_net_weight) }} KG</div>
+                    </div>
+                    <div>
+                        <div class="info-label">Total Items</div>
+                        <div class="info-value">{{ total_items }} pieces</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Special Instructions -->
+    {% if special_instructions %}
+    <div class="alert-box">
+        <strong>⚠️ SPECIAL HANDLING INSTRUCTIONS:</strong><br>
+        {{ special_instructions }}
+    </div>
+    {% endif %}
+
+    <!-- Marks and Numbers -->
+    {% if marks_and_numbers %}
+    <div class="section">
+        <div class="section-title">Marks & Numbers</div>
+        <div class="info-box">
+            <pre style="font-family: 'Courier New', monospace; font-size: 10px; white-space: pre-wrap;">{{ marks_and_numbers }}</pre>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Certifications -->
+    <div class="section">
+        <div class="section-title">Certifications & Declarations</div>
+        <div class="terms-conditions">
+            <strong>☑</strong> The above particulars are believed to be correct.<br>
+            <strong>☑</strong> The contents of all packages are as described.<br>
+            <strong>☑</strong> No hazardous materials are included unless specifically declared.<br>
+            <strong>☑</strong> Weights and measurements are approximate and subject to verification.<br>
+            {% if is_fragile %}
+            <strong>☑</strong> <span style="color: #e74c3c;">FRAGILE CARGO - HANDLE WITH CARE</span><br>
+            {% endif %}
+            {% if requires_temperature_control %}
+            <strong>☑</strong> <span style="color: #3498db;">TEMPERATURE CONTROLLED - Maintain {{ temperature_range }}</span><br>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Signatures -->
+    <div class="signatures">
+        <div class="signature-box">
+            <div class="signature-label">
+                <strong>Packed By</strong><br>
+                {{ shipper_name }}
+            </div>
+            <div style="margin-top: 60px; border-top: 1px solid #333; padding-top: 5px;">
+                Name, Signature & Date
+            </div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-label">
+                <strong>Verified By</strong><br>
+                Quality Control
+            </div>
+            <div style="margin-top: 60px; border-top: 1px solid #333; padding-top: 5px;">
+                Name, Signature & Date
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        This packing list is for informational purposes and accompanies the commercial invoice.<br>
+        Generated by CW Logistics Platform | Packing List ID: {{ packing_list_number }} | Generated: {{ generation_date }}
+    </div>
+</body>
+</html>

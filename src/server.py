@@ -15,6 +15,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent))
 
 from ml.delay_predictor import DelayPredictor
+from documents.generator_reportlab import get_document_generator
 
 # Configure logging
 logging.basicConfig(
@@ -41,6 +42,7 @@ app.add_middleware(
 
 # Global ML model instances
 delay_predictor: Optional[DelayPredictor] = None
+document_generator = None
 
 
 # ============================================================================
@@ -98,7 +100,7 @@ class ModelInfoResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize ML models on startup."""
-    global delay_predictor
+    global delay_predictor, document_generator
     
     logger.info("🚀 Starting CW Analytics Engine...")
     
@@ -111,6 +113,13 @@ async def startup_event():
     except Exception as e:
         logger.error(f"❌ Failed to load models: {e}")
         logger.warning("⚠️  Server starting without ML models - training may be required")
+    
+    try:
+        # Initialize document generator
+        document_generator = get_document_generator()
+        logger.info("✅ Document generator initialized")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize document generator: {e}")
     
     logger.info("✅ Analytics Engine ready!")
 
@@ -134,6 +143,7 @@ async def root():
         "status": "running",
         "endpoints": {
             "ml": ["/predict-delay"],
+            "documents": ["/generate-document"],
             "analytics": ["/analytics/routes", "/analytics/carriers"],
             "info": ["/model-info", "/health"]
         }
@@ -254,6 +264,102 @@ async def train_delay_model():
         "status": "coming_soon",
         "message": "Model training endpoint under development"
     }
+
+
+# ============================================================================
+# Document Generation Endpoints
+# ============================================================================
+
+class DocumentGenerationRequest(BaseModel):
+    """Request model for document generation."""
+    document_type: str  # "BOL", "COMMERCIAL_INVOICE", "PACKING_LIST"
+    data: Dict[str, Any]
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "document_type": "BOL",
+                "data": {
+                    "shipment_id": "job-2025-001",
+                    "carrier_name": "MAERSK LINE",
+                    "shipper_name": "ABC Corporation",
+                    "shipper_address": "123 Export St",
+                    "shipper_city": "Shanghai",
+                    "shipper_country": "China",
+                    "consignee_name": "XYZ Inc",
+                    "consignee_address": "456 Import Ave",
+                    "consignee_city": "Los Angeles",
+                    "consignee_country": "USA",
+                    "vessel_name": "MSC GULSUN",
+                    "voyage_number": "123W",
+                    "port_of_loading": "Shanghai",
+                    "port_of_discharge": "Los Angeles",
+                    "containers": [
+                        {
+                            "number": "MSCU1234567",
+                            "seal_number": "SEAL001",
+                            "type": "40HC",
+                            "package_count": 500,
+                            "package_type": "CARTONS",
+                            "description": "Electronic Components",
+                            "weight": 15000,
+                            "volume": 67.5
+                        }
+                    ]
+                }
+            }
+        }
+
+
+@app.post("/generate-document")
+async def generate_document(request: DocumentGenerationRequest):
+    """
+    Generate a logistics document (BOL, Invoice, or Packing List).
+    
+    Args:
+        request: Document generation request with type and data
+    
+    Returns:
+        Document generation result with file path and URL
+    """
+    if not document_generator:
+        raise HTTPException(
+            status_code=503,
+            detail="Document generator not initialized"
+        )
+    
+    try:
+        doc_type = request.document_type.upper()
+        logger.info(f"Generating document type: {doc_type}")
+        
+        if doc_type == "BOL" or doc_type == "BILL_OF_LADING":
+            result = document_generator.generate_bill_of_lading(request.data)
+        elif doc_type == "COMMERCIAL_INVOICE" or doc_type == "INVOICE":
+            result = document_generator.generate_commercial_invoice(request.data)
+        elif doc_type == "PACKING_LIST" or doc_type == "PKG":
+            result = document_generator.generate_packing_list(request.data)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported document type: {doc_type}. Supported types: BOL, COMMERCIAL_INVOICE, PACKING_LIST"
+            )
+        
+        if not result.get("success"):
+            raise HTTPException(
+                status_code=500,
+                detail=result.get("error", "Unknown error during document generation")
+            )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in document generation endpoint: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Document generation failed: {str(e)}"
+        )
 
 
 # ============================================================================

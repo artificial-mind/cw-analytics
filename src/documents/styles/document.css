@@ -1,0 +1,246 @@
+/* Common styles for all logistics documents */
+
+@page {
+    size: A4;
+    margin: 2cm 1.5cm;
+    
+    @top-center {
+        content: "Page " counter(page) " of " counter(pages);
+        font-size: 10px;
+        color: #666;
+    }
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', 'Helvetica', sans-serif;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #333;
+}
+
+.document-header {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 3px solid #2c3e50;
+}
+
+.document-title {
+    font-size: 24px;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.document-subtitle {
+    font-size: 12px;
+    color: #7f8c8d;
+    font-style: italic;
+}
+
+.company-info {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.company-logo {
+    max-width: 150px;
+    max-height: 60px;
+}
+
+.company-details {
+    text-align: right;
+    font-size: 10px;
+    color: #666;
+}
+
+.section {
+    margin-bottom: 20px;
+}
+
+.section-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid #ecf0f1;
+    text-transform: uppercase;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.info-box {
+    border: 1px solid #ddd;
+    padding: 10px;
+    background-color: #f9f9f9;
+}
+
+.info-label {
+    font-size: 9px;
+    color: #7f8c8d;
+    text-transform: uppercase;
+    font-weight: bold;
+    margin-bottom: 3px;
+}
+
+.info-value {
+    font-size: 11px;
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+.table th {
+    background-color: #2c3e50;
+    color: white;
+    padding: 10px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #ecf0f1;
+    font-size: 10px;
+}
+
+.table tr:nth-child(even) td {
+    background-color: #f9f9f9;
+}
+
+.table tr:hover td {
+    background-color: #ecf0f1;
+}
+
+.totals-section {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.totals-box {
+    width: 300px;
+    border: 2px solid #2c3e50;
+    padding: 15px;
+}
+
+.total-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #ecf0f1;
+}
+
+.total-row.grand-total {
+    font-size: 14px;
+    font-weight: bold;
+    color: #2c3e50;
+    border-top: 2px solid #2c3e50;
+    border-bottom: 2px solid #2c3e50;
+    margin-top: 10px;
+    padding-top: 10px;
+}
+
+.signatures {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 40px;
+}
+
+.signature-box {
+    border-top: 2px solid #333;
+    padding-top: 10px;
+}
+
+.signature-label {
+    font-size: 10px;
+    color: #7f8c8d;
+    margin-top: 40px;
+}
+
+.footer {
+    margin-top: 30px;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+    font-size: 9px;
+    color: #999;
+    text-align: center;
+}
+
+.terms-conditions {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-left: 4px solid #3498db;
+    font-size: 9px;
+    color: #666;
+}
+
+.terms-conditions h4 {
+    font-size: 10px;
+    margin-bottom: 8px;
+    color: #2c3e50;
+}
+
+.terms-conditions ul {
+    margin-left: 20px;
+    list-style-type: disc;
+}
+
+.terms-conditions li {
+    margin-bottom: 5px;
+}
+
+.watermark {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-45deg);
+    font-size: 100px;
+    color: rgba(0, 0, 0, 0.05);
+    z-index: -1;
+    font-weight: bold;
+}
+
+.stamp-box {
+    border: 2px dashed #ccc;
+    padding: 20px;
+    text-align: center;
+    color: #999;
+    font-size: 9px;
+    margin: 20px 0;
+}
+
+.alert-box {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 10px;
+    margin-bottom: 15px;
+    font-size: 10px;
+}
+
+.alert-box strong {
+    color: #856404;
+}

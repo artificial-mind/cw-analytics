@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Commercial Invoice - {{ invoice_number }}</title>
+    <link rel="stylesheet" href="../styles/document.css">
+    <style>
+        .invoice-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .tax-summary {
+            background-color: #f8f9fa;
+            border: 2px solid #dee2e6;
+            padding: 15px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="invoice-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-size: 28px; font-weight: bold;">COMMERCIAL INVOICE</div>
+                <div style="font-size: 12px; opacity: 0.9;">For Customs Clearance</div>
+            </div>
+            <div style="text-align: right; font-size: 14px;">
+                <strong>Invoice #:</strong> {{ invoice_number }}<br>
+                <strong>Date:</strong> {{ invoice_date }}<br>
+                <strong>Currency:</strong> {{ currency }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Exporter / Importer Info -->
+    <div class="info-grid">
+        <div class="info-box">
+            <div class="info-label">Exporter (Seller)</div>
+            <div class="info-value">
+                <strong>{{ exporter_name }}</strong><br>
+                {{ exporter_address }}<br>
+                {{ exporter_city }}, {{ exporter_state }} {{ exporter_postal_code }}<br>
+                {{ exporter_country }}<br>
+                Tax ID: {{ exporter_tax_id }}<br>
+                Contact: {{ exporter_phone }}
+            </div>
+        </div>
+        <div class="info-box">
+            <div class="info-label">Importer (Buyer)</div>
+            <div class="info-value">
+                <strong>{{ importer_name }}</strong><br>
+                {{ importer_address }}<br>
+                {{ importer_city }}, {{ importer_state }} {{ importer_postal_code }}<br>
+                {{ importer_country }}<br>
+                Tax ID: {{ importer_tax_id }}<br>
+                Contact: {{ importer_phone }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Shipment Details -->
+    <div class="section">
+        <div class="section-title">Shipment Information</div>
+        <div class="info-grid">
+            <div class="info-box">
+                <div class="info-label">Shipment ID</div>
+                <div class="info-value">{{ shipment_id }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Purchase Order</div>
+                <div class="info-value">{{ po_number }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Incoterms</div>
+                <div class="info-value">{{ incoterms }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Payment Terms</div>
+                <div class="info-value">{{ payment_terms }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Country of Origin</div>
+                <div class="info-value">{{ country_of_origin }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Export Date</div>
+                <div class="info-value">{{ export_date }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Line Items -->
+    <div class="section">
+        <div class="section-title">Invoice Line Items</div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 8%;">Item #</th>
+                    <th style="width: 35%;">Description of Goods</th>
+                    <th style="width: 12%;">HS Code</th>
+                    <th style="width: 8%;">Quantity</th>
+                    <th style="width: 8%;">Unit</th>
+                    <th style="width: 12%;">Unit Price</th>
+                    <th style="width: 12%;">Total Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in line_items %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>
+                        <strong>{{ item.description }}</strong><br>
+                        <span style="font-size: 9px; color: #666;">
+                            Part #: {{ item.part_number }}<br>
+                            Origin: {{ item.country_of_origin }}
+                        </span>
+                    </td>
+                    <td><strong>{{ item.hs_code }}</strong></td>
+                    <td style="text-align: right;">{{ item.quantity }}</td>
+                    <td>{{ item.unit }}</td>
+                    <td style="text-align: right;">{{ currency_symbol }}{{ "%.2f"|format(item.unit_price) }}</td>
+                    <td style="text-align: right;"><strong>{{ currency_symbol }}{{ "%.2f"|format(item.total_value) }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Totals Section -->
+    <div class="totals-section">
+        <div class="totals-box">
+            <div class="total-row">
+                <span>Subtotal:</span>
+                <span><strong>{{ currency_symbol }}{{ "%.2f"|format(subtotal) }}</strong></span>
+            </div>
+            {% if discount_amount > 0 %}
+            <div class="total-row">
+                <span>Discount ({{ discount_percentage }}%):</span>
+                <span>-{{ currency_symbol }}{{ "%.2f"|format(discount_amount) }}</span>
+            </div>
+            {% endif %}
+            <div class="total-row">
+                <span>Freight Charges:</span>
+                <span>{{ currency_symbol }}{{ "%.2f"|format(freight_charges) }}</span>
+            </div>
+            <div class="total-row">
+                <span>Insurance:</span>
+                <span>{{ currency_symbol }}{{ "%.2f"|format(insurance_charges) }}</span>
+            </div>
+            {% if vat_amount > 0 %}
+            <div class="total-row">
+                <span>VAT/GST ({{ vat_percentage }}%):</span>
+                <span>{{ currency_symbol }}{{ "%.2f"|format(vat_amount) }}</span>
+            </div>
+            {% endif %}
+            <div class="total-row grand-total">
+                <span>GRAND TOTAL:</span>
+                <span>{{ currency_symbol }}{{ "%.2f"|format(grand_total) }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customs & Tax Information -->
+    <div class="tax-summary">
+        <div class="section-title" style="margin-bottom: 15px;">Customs Declaration</div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+            <div>
+                <div class="info-label">Total Gross Weight</div>
+                <div class="info-value">{{ total_gross_weight }} KG</div>
+            </div>
+            <div>
+                <div class="info-label">Total Net Weight</div>
+                <div class="info-value">{{ total_net_weight }} KG</div>
+            </div>
+            <div>
+                <div class="info-label">Total Packages</div>
+                <div class="info-value">{{ total_packages }} {{ package_type }}</div>
+            </div>
+        </div>
+        <div style="margin-top: 15px; padding: 10px; background-color: white; border-radius: 3px;">
+            <strong>Declared Value for Customs:</strong> {{ currency }} {{ "%.2f"|format(declared_customs_value) }}<br>
+            <span style="font-size: 9px; color: #666;">
+                I/We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.
+            </span>
+        </div>
+    </div>
+
+    <!-- Payment Instructions -->
+    {% if payment_instructions %}
+    <div class="section">
+        <div class="section-title">Payment Instructions</div>
+        <div class="info-box">
+            <div class="info-value">
+                <strong>Bank Name:</strong> {{ bank_name }}<br>
+                <strong>Account Name:</strong> {{ account_name }}<br>
+                <strong>Account Number:</strong> {{ account_number }}<br>
+                <strong>SWIFT/BIC:</strong> {{ swift_code }}<br>
+                <strong>Bank Address:</strong> {{ bank_address }}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Terms and Notes -->
+    <div class="terms-conditions">
+        <h4>TERMS & CONDITIONS</h4>
+        <ul>
+            <li>Payment is due within {{ payment_due_days }} days from the invoice date.</li>
+            <li>Late payment may incur interest charges at {{ late_payment_interest_rate }}% per annum.</li>
+            <li>The seller retains title to goods until full payment is received.</li>
+            <li>Any disputes must be resolved under the jurisdiction of {{ governing_law }}.</li>
+            <li>This invoice is valid for customs clearance purposes.</li>
+        </ul>
+        {% if notes %}
+        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
+            <strong>Additional Notes:</strong><br>
+            {{ notes }}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Signatures -->
+    <div class="signatures">
+        <div class="signature-box">
+            <div class="signature-label">
+                <strong>Authorized Signature (Exporter)</strong><br>
+                {{ exporter_name }}
+            </div>
+            <div style="margin-top: 60px; border-top: 1px solid #333; padding-top: 5px;">
+                Name & Title
+            </div>
+        </div>
+        <div class="signature-box">
+            <div class="stamp-box">
+                Company Seal/Stamp
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        This is a computer-generated invoice and is valid without signature.<br>
+        Generated by CW Logistics Platform | Invoice ID: {{ invoice_number }} | Generated: {{ generation_date }}
+    </div>
+</body>
+</html>

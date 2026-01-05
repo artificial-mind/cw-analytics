@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Bill of Lading - {{ document_number }}</title>
+    <link rel="stylesheet" href="../styles/document.css">
+    <style>
+        .bol-specific {
+            background-color: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        .container-info {
+            border: 2px solid #2c3e50;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="document-header">
+        <div class="document-title">Bill of Lading</div>
+        <div class="document-subtitle">Ocean Transport Document - Not Negotiable</div>
+    </div>
+
+    <!-- Company Info -->
+    <div class="company-info">
+        <div>
+            <strong style="font-size: 14px;">{{ carrier_name }}</strong><br>
+            <span style="font-size: 10px;">{{ carrier_address }}</span>
+        </div>
+        <div class="company-details">
+            <strong>B/L Number:</strong> {{ document_number }}<br>
+            <strong>Booking Number:</strong> {{ booking_number }}<br>
+            <strong>Date:</strong> {{ issue_date }}
+        </div>
+    </div>
+
+    <!-- Alert Box for Negotiable Status -->
+    <div class="bol-specific">
+        <strong>DOCUMENT TYPE:</strong> {{ bol_type }}<br>
+        <strong>NEGOTIABILITY:</strong> {{ 'NEGOTIABLE - Original Bill of Lading' if is_negotiable else 'NON-NEGOTIABLE - Sea Waybill' }}
+    </div>
+
+    <!-- Shipper, Consignee, Notify Party -->
+    <div class="info-grid">
+        <div class="info-box">
+            <div class="info-label">Shipper (Exporter)</div>
+            <div class="info-value">
+                {{ shipper_name }}<br>
+                {{ shipper_address }}<br>
+                {{ shipper_city }}, {{ shipper_country }}<br>
+                Tax ID: {{ shipper_tax_id }}
+            </div>
+        </div>
+        <div class="info-box">
+            <div class="info-label">Consignee (Importer)</div>
+            <div class="info-value">
+                {{ consignee_name }}<br>
+                {{ consignee_address }}<br>
+                {{ consignee_city }}, {{ consignee_country }}<br>
+                Tax ID: {{ consignee_tax_id }}
+            </div>
+        </div>
+    </div>
+
+    <div class="info-box" style="margin-bottom: 20px;">
+        <div class="info-label">Notify Party</div>
+        <div class="info-value">
+            {{ notify_party_name }}<br>
+            {{ notify_party_address }}<br>
+            {{ notify_party_city }}, {{ notify_party_country }}<br>
+            Contact: {{ notify_party_phone }} / {{ notify_party_email }}
+        </div>
+    </div>
+
+    <!-- Vessel and Voyage Information -->
+    <div class="section">
+        <div class="section-title">Vessel & Voyage Information</div>
+        <div class="info-grid">
+            <div class="info-box">
+                <div class="info-label">Vessel Name</div>
+                <div class="info-value">{{ vessel_name }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Voyage Number</div>
+                <div class="info-value">{{ voyage_number }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Port of Loading</div>
+                <div class="info-value">{{ port_of_loading }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Port of Discharge</div>
+                <div class="info-value">{{ port_of_discharge }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Place of Receipt</div>
+                <div class="info-value">{{ place_of_receipt }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Place of Delivery</div>
+                <div class="info-value">{{ place_of_delivery }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Container Details -->
+    <div class="section">
+        <div class="section-title">Container & Cargo Details</div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Container No.</th>
+                    <th>Seal No.</th>
+                    <th>Type/Size</th>
+                    <th>Packages</th>
+                    <th>Description of Goods</th>
+                    <th>Weight (KG)</th>
+                    <th>Measurement (CBM)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for container in containers %}
+                <tr>
+                    <td><strong>{{ container.number }}</strong></td>
+                    <td>{{ container.seal_number }}</td>
+                    <td>{{ container.type }}</td>
+                    <td>{{ container.package_count }} {{ container.package_type }}</td>
+                    <td>{{ container.description }}</td>
+                    <td>{{ container.weight }}</td>
+                    <td>{{ container.volume }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Totals -->
+        <div class="container-info">
+            <strong>Total Containers:</strong> {{ total_containers }} | 
+            <strong>Total Packages:</strong> {{ total_packages }} | 
+            <strong>Total Weight:</strong> {{ total_weight }} KG | 
+            <strong>Total Volume:</strong> {{ total_volume }} CBM
+        </div>
+    </div>
+
+    <!-- Freight and Charges -->
+    <div class="section">
+        <div class="section-title">Freight & Charges</div>
+        <div class="info-grid">
+            <div class="info-box">
+                <div class="info-label">Freight Terms</div>
+                <div class="info-value">{{ freight_terms }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Payment Terms</div>
+                <div class="info-value">{{ payment_terms }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Number of Originals</div>
+                <div class="info-value">{{ number_of_originals }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Shipped On Board Date</div>
+                <div class="info-value">{{ shipped_on_board_date }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terms and Conditions -->
+    <div class="terms-conditions">
+        <h4>TERMS AND CONDITIONS</h4>
+        <ul>
+            <li>All terms and conditions, liberties and exceptions of the Carrier's applicable Tariff are incorporated herein.</li>
+            <li>The carrier shall in no case be liable for any loss or damage arising from insufficiency of packing, marks, numbers or address.</li>
+            <li>The carrier shall not be liable for loss or damage to cargo arising from strike, lock-out, stoppage, restraint of labor, riots, civil commotions.</li>
+            <li>Deck cargo and live animals are carried entirely at the risk of the Merchant.</li>
+            <li>In accepting this Bill of Lading, the Merchant expressly accepts and agrees to all terms and conditions whether written, stamped or printed.</li>
+        </ul>
+    </div>
+
+    <!-- Signatures -->
+    <div class="signatures">
+        <div class="signature-box">
+            <div class="signature-label">
+                <strong>For the Carrier ({{ carrier_name }})</strong><br>
+                As Agent(s) Only
+            </div>
+            <div style="margin-top: 60px; border-top: 1px solid #333; padding-top: 5px;">
+                Authorized Signature
+            </div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-label">
+                <strong>Place and Date of Issue</strong><br>
+                {{ place_of_issue }}<br>
+                {{ issue_date }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        This Bill of Lading is issued subject to the terms and conditions of the carrier's tariff.<br>
+        Generated by CW Logistics Platform | Document ID: {{ document_number }} | Generated: {{ generation_date }}
+    </div>
+</body>
+</html>
