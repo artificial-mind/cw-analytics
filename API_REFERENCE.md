@@ -311,6 +311,113 @@ The CW Analytics Engine provides centralized ML/AI and analytics services for th
 
 ---
 
+### Real-Time Tracking Endpoints (Day 6 - Tools 12-14)
+
+#### `POST /api/vessel/track`
+**Description:** Track vessel in real-time using AIS data  
+**Request Body:** `VesselTrackRequest`
+
+```json
+{
+  "vessel_name": "MAERSK",
+  "imo_number": "1234567",
+  "mmsi": "123456789"
+}
+```
+
+**Response:** `200 OK` - Real-time vessel tracking data
+
+```json
+{
+  "success": true,
+  "data": {
+    "vessel_name": "MAERSK SEALAND",
+    "imo": "9632179",
+    "mmsi": "220532000",
+    "position": {
+      "lat": 37.776995,
+      "lon": -122.420063
+    },
+    "speed": 12.64,
+    "heading": 273.0,
+    "status": "Underway using engine",
+    "next_port": "Oakland",
+    "eta": "2025-01-25T14:00:00Z"
+  }
+}
+```
+
+#### `GET /api/shipment/{shipment_id}/multimodal-tracking`
+**Description:** Track shipment across multiple transport modes (ocean, rail, truck)  
+**Path Parameters:**
+- `shipment_id` (string): Shipment or job number (e.g., "job-2025-001")
+
+**Response:** `200 OK` - Multimodal journey tracking data
+
+```json
+{
+  "success": true,
+  "data": {
+    "shipment_id": "job-2025-001",
+    "status": "in_transit",
+    "progress_percentage": 16.7,
+    "current_mode": "ocean",
+    "journey": [
+      {
+        "leg_number": 1,
+        "mode": "ocean",
+        "carrier": "MAERSK LINE",
+        "from": "Shanghai Port",
+        "to": "Los Angeles Port",
+        "status": "in_transit",
+        "eta": "2025-01-23T14:00:00Z",
+        "distance_km": 11500.0
+      }
+    ],
+    "total_legs": 3,
+    "completed_legs": 0
+  }
+}
+```
+
+#### `GET /api/container/{container_number}/live-tracking`
+**Description:** Track container with live IoT sensor data  
+**Path Parameters:**
+- `container_number` (string): Container number (e.g., "MAEU1234567")
+
+**Response:** `200 OK` - Live container tracking with IoT sensors
+
+```json
+{
+  "success": true,
+  "data": {
+    "container_number": "MAEU1234567",
+    "container_type": "40HC Reefer",
+    "battery_level": 87,
+    "gps": {
+      "latitude": 37.776995,
+      "longitude": -122.420063,
+      "accuracy_meters": 13
+    },
+    "temperature": {
+      "temperature_celsius": -15.8,
+      "setpoint_celsius": -18.0,
+      "deviation": 2.2
+    },
+    "alerts": [
+      {
+        "type": "temperature_deviation",
+        "severity": "medium",
+        "message": "Temperature deviation: 2.2°C from setpoint"
+      }
+    ],
+    "alert_count": 1
+  }
+}
+```
+
+---
+
 ## Error Handling
 
 All endpoints follow standard HTTP status codes:
@@ -445,4 +552,5 @@ async with httpx.AsyncClient() as client:
 
 ## Version History
 
+- **1.1.0** (2026-01-06): Added real-time tracking endpoints (vessel, multimodal, container) - Day 6 Priority 1
 - **1.0.0** (2026-01-05): Initial release with ML delay prediction and document generation

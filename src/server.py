@@ -16,6 +16,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from ml.delay_predictor import DelayPredictor
 from documents.generator_reportlab import get_document_generator
+from services.vessel_tracking import get_vessel_tracking_service
+from services.multimodal_tracking import get_multimodal_tracking_service
+from services.container_tracking import get_container_tracking_service
 
 # Configure logging
 logging.basicConfig(
@@ -43,6 +46,9 @@ app.add_middleware(
 # Global ML model instances
 delay_predictor: Optional[DelayPredictor] = None
 document_generator = None
+vessel_tracking_service = None
+multimodal_tracking_service = None
+container_tracking_service = None
 
 
 # ============================================================================
@@ -100,7 +106,7 @@ class ModelInfoResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize ML models on startup."""
-    global delay_predictor, document_generator
+    global delay_predictor, document_generator, vessel_tracking_service, multimodal_tracking_service, container_tracking_service
     
     logger.info("🚀 Starting CW Analytics Engine...")
     
@@ -120,6 +126,27 @@ async def startup_event():
         logger.info("✅ Document generator initialized")
     except Exception as e:
         logger.error(f"❌ Failed to initialize document generator: {e}")
+    
+    try:
+        # Initialize vessel tracking service
+        vessel_tracking_service = get_vessel_tracking_service()
+        logger.info("✅ Vessel tracking service initialized")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize vessel tracking: {e}")
+    
+    try:
+        # Initialize multimodal tracking service
+        multimodal_tracking_service = get_multimodal_tracking_service()
+        logger.info("✅ Multimodal tracking service initialized")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize multimodal tracking: {e}")
+    
+    try:
+        # Initialize container tracking service
+        container_tracking_service = get_container_tracking_service()
+        logger.info("✅ Container tracking service initialized")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize container tracking: {e}")
     
     logger.info("✅ Analytics Engine ready!")
 
@@ -359,6 +386,203 @@ async def generate_document(request: DocumentGenerationRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Document generation failed: {str(e)}"
+        )
+
+
+# ============================================================================
+# Vessel Tracking Endpoints (Day 6 - Tool 12)
+# ============================================================================
+
+class VesselTrackRequest(BaseModel):
+    """Request model for vessel tracking"""
+    vessel_name: Optional[str] = None
+    imo_number: Optional[str] = None
+    mmsi: Optional[str] = None
+
+@app.post("/api/vessel/track")
+async def track_vessel(request: VesselTrackRequest):
+    """
+    Track a vessel in real-time using AIS data
+    
+    Args:
+        request: Vessel identification (name, IMO, or MMSI)
+    
+    Returns:
+        Real-time vessel position, speed, heading, and status
+    """
+    if not vessel_tracking_service:
+        raise HTTPException(
+            status_code=503,
+            detail="Vessel tracking service not initialized"
+        )
+    
+    if not any([request.vessel_name, request.imo_number, request.mmsi]):
+        raise HTTPException(
+            status_code=400,
+            detail="At least one identifier required: vessel_name, imo_number, or mmsi"
+        )
+    
+    try:
+        result = vessel_tracking_service.track_vessel(
+            vessel_name=request.vessel_name,
+            imo_number=request.imo_number,
+            mmsi=request.mmsi
+        )
+        
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["message"])
+        
+        return {
+            "success": True,
+            "data": result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in vessel tracking endpoint: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Vessel tracking failed: {str(e)}"
+        )
+
+@app.get("/api/vessel/list")
+async def list_vessels():
+    """Get list of all trackable vessels"""
+    if not vessel_tracking_service:
+        raise HTTPException(
+            status_code=503,
+            detail="Vessel tracking service not initialized"
+        )
+    
+    try:
+        vessels = vessel_tracking_service.get_all_tracked_vessels()
+        return {
+            "success": True,
+            "vessels": vessels,
+            "count": len(vessels)
+        }
+    except Exception as e:
+        logger.error(f"Error listing vessels: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list vessels: {str(e)}"
+        )
+
+
+@app.get("/api/shipment/{shipment_id}/multimodal-tracking")
+async def track_multimodal_shipment(shipment_id: str):
+    """
+    Track a shipment across multiple transport modes (ocean, rail, truck).
+    
+    Args:
+        shipment_id: Shipment/job number (e.g., job-2025-001)
+    
+    Returns:
+        Detailed tracking information including:
+        - Overall progress percentage
+        - Current transport leg and mode
+        - All transport legs (completed, in-progress, planned)
+        - Handoff points and status
+        - Current location and next destination
+    """
+    if not multimodal_tracking_service:
+        raise HTTPException(
+            status_code=503,
+            detail="Multimodal tracking service not initialized"
+        )
+    
+    try:
+        logger.info(f"Tracking multimodal shipment: {shipment_id}")
+        
+        result = multimodal_tracking_service.track_multimodal_shipment(shipment_id=shipment_id)
+        
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["message"])
+        
+        return {
+            "success": True,
+            "data": result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in multimodal tracking endpoint: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Multimodal tracking failed: {str(e)}"
+        )
+
+
+@app.get("/api/container/{container_number}/live-tracking")
+async def track_container_live(container_number: str):
+    """
+    Track container with live IoT sensor data.
+    
+    Args:
+        container_number: Container number (e.g., MAEU1234567)
+    
+    Returns:
+        Live tracking data including:
+        - GPS location (lat/lon)
+        - Temperature monitoring (for reefer containers)
+        - Humidity monitoring
+        - Shock/impact events
+        - Door open/close events
+        - Battery level
+        - Active alerts
+    """
+    if not container_tracking_service:
+        raise HTTPException(
+            status_code=503,
+            detail="Container tracking service not initialized"
+        )
+    
+    try:
+        logger.info(f"Tracking container with live sensors: {container_number}")
+        
+        result = container_tracking_service.track_container_live(container_number)
+        
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["message"])
+        
+        return {
+            "success": True,
+            "data": result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in container tracking endpoint: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Container tracking failed: {str(e)}"
+        )
+
+
+@app.get("/api/container/list")
+async def list_containers():
+    """Get list of all containers with IoT sensors"""
+    if not container_tracking_service:
+        raise HTTPException(
+            status_code=503,
+            detail="Container tracking service not initialized"
+        )
+    
+    try:
+        containers = container_tracking_service.get_all_tracked_containers()
+        return {
+            "success": True,
+            "containers": containers,
+            "count": len(containers)
+        }
+    except Exception as e:
+        logger.error(f"Error listing containers: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list containers: {str(e)}"
         )
 
 
