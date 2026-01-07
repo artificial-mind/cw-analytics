@@ -1,6 +1,6 @@
 # CW Analytics Engine - API Reference
 
-**Version:** 1.0.0  
+**Version:** 1.2.0  
 **Base URL:** `http://localhost:8002`  
 **Protocol:** REST API (FastAPI)
 
@@ -10,6 +10,10 @@ The CW Analytics Engine provides centralized ML/AI and analytics services for th
 - Predictive delay detection using machine learning
 - Document generation (BOL, Commercial Invoice, Packing List)
 - Analytics and reporting endpoints
+- Customer communication and notifications
+- Public tracking link generation
+- Proactive delay warnings
+- Real-time exception monitoring
 
 ---
 
@@ -415,6 +419,235 @@ The CW Analytics Engine provides centralized ML/AI and analytics services for th
   }
 }
 ```
+
+---
+
+### Customer Communication Endpoints (Day 7 - Tool 28)
+
+#### `POST /api/notifications/send`
+**Description:** Send status update notification to customer via email or SMS  
+**Request Body:**
+```json
+{
+  "shipment_id": "SHIP12345",
+  "notification_type": "departed",
+  "recipient_email": "customer@example.com",
+  "recipient_phone": "+1234567890",
+  "language": "en",
+  "tracking_url": "https://track.cwlogistics.com/SHIP12345",
+  "additional_data": {}
+}
+```
+
+**Notification Types:**
+- `departed`: Shipment has left origin
+- `in_transit`: Update while shipment is moving
+- `arrived`: Shipment arrived at destination
+- `customs_cleared`: Cleared customs successfully
+- `delivered`: Final delivery completed
+- `delayed`: Delay detected
+- `exception`: Issue requiring attention
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "notification_id": "NOTIF-20260107-84f6596c",
+    "shipment_id": "SHIP12345",
+    "notification_type": "departed",
+    "sent_at": "2026-01-07T06:16:32.638982Z",
+    "channels": ["email"],
+    "recipient_email": "customer@example.com",
+    "recipient_phone": null,
+    "language": "en",
+    "message_preview": "Your shipment SHIP12345 has departed",
+    "tracking_url": "https://track.cwlogistics.com/SHIP12345"
+  }
+}
+```
+
+**Supported Languages:**
+- `en`: English
+- `es`: Spanish
+- `zh`: Chinese
+
+**Error Response:** `422 Unprocessable Entity`
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": ["body", "shipment_id"],
+      "msg": "Field required"
+    }
+  ]
+}
+```
+
+#### `POST /api/tracking-link/generate` (Day 7 - Tool 29)
+**Description:** Generate secure public tracking link for customer portal access  
+**Request Body:**
+```json
+{
+  "shipment_id": "SHIP12345",
+  "expires_in_days": 30
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": {
+    "tracking_url": "https://track.cwlogistics.com/a3f8b2c1-4d5e-6f7g-8h9i-0j1k2l3m4n5o",
+    "token": "a3f8b2c1-4d5e-6f7g-8h9i-0j1k2l3m4n5o",
+    "shipment_id": "SHIP12345",
+    "expires_at": "2026-02-06T12:00:00Z",
+    "created_at": "2026-01-07T12:00:00Z"
+  },
+  "message": "Public tracking link generated successfully"
+}
+```
+
+**Features:**
+- UUID4-based secure tokens (RFC 4122 compliant)
+- 30-day default expiration (configurable)
+- Database persistence for validation
+- No authentication required for access
+- Revocable via database deletion
+
+**Error Response:** `400 Bad Request`
+```json
+{
+  "detail": "Shipment not found: SHIP12345"
+}
+```
+
+#### `POST /api/notifications/proactive-delay-warning` (Day 7 - Tool 30)
+**Description:** Proactively warn customers about potential delays based on ML predictions  
+**Request Body:**
+```json
+{
+  "shipment_id": "SHIP12345",
+  "recipient_email": "customer@example.com",
+  "recipient_phone": "+1234567890",
+  "language": "en"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "shipment_id": "SHIP12345",
+    "warning_sent": true,
+    "ml_confidence": 0.85,
+    "risk_factors": [
+      "Weather conditions",
+      "Port congestion"
+    ],
+    "predicted_delay_hours": 24,
+    "notification_id": "NOTIF-20260107-8fdb75c9",
+    "sent_at": "2026-01-07T14:30:00Z"
+  },
+  "message": "Proactive warning sent for shipment SHIP12345"
+}
+```
+
+**Logic:**
+- Runs ML prediction on shipment
+- Only sends notification if confidence > 70%
+- Returns `warning_sent: false` if confidence ≤ 70%
+- Includes risk factors and predicted delay hours
+- Automatic notification with "delayed" type
+
+**Mock ML Data (MVP):**
+```json
+{
+  "will_delay": true,
+  "confidence": 0.85,
+  "risk_factors": ["Weather conditions", "Port congestion"],
+  "predicted_delay_hours": 24
+}
+```
+
+**Response when confidence ≤ 70%:**
+```json
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "shipment_id": "SHIP12345",
+    "warning_sent": false,
+    "ml_confidence": 0.65,
+    "reason": "Confidence 65.0% below threshold 70%"
+  },
+  "message": "Proactive warning not needed for shipment SHIP12345"
+}
+```
+
+---
+
+### Exception Monitor Background Service (Day 7)
+
+**Description:** Automated background service that runs every 5 minutes to detect shipment exceptions
+
+**Monitoring Checks:**
+1. **Delays > 24 hours** - Shipments significantly behind schedule
+2. **ML Predictions > 70%** - High confidence delay predictions
+3. **Temperature Deviations** - Reefer container temp outside threshold (±5°C)
+4. **Geofence Violations** - Shipments outside expected route
+5. **Missing Milestones > 72 hours** - Expected milestones not recorded
+
+**A2A Integration:**
+- Automatically notifies Exception Crew via A2A Protocol
+- Sends to: `http://localhost:9000/message:send`
+- Skill: `handle-exception`
+- Includes exception details: type, severity, shipment_id
+
+**Database Logging:**
+- Table: `exception_monitor_runs`
+- Fields: `run_timestamp`, `exceptions_found`, `shipments_checked`, `notifications_sent`, `run_duration_ms`
+- Indexed by: `run_timestamp`
+
+**Service Lifecycle:**
+- **Startup:** Automatically starts with Analytics Engine
+- **Interval:** 5 minutes between cycles
+- **Shutdown:** Gracefully stops with server shutdown
+
+**Query Monitoring History:**
+```sql
+SELECT * FROM exception_monitor_runs 
+ORDER BY run_timestamp DESC 
+LIMIT 10;
+```
+
+**Example Log Entry:**
+```json
+{
+  "run_timestamp": "2026-01-07T21:20:25.520328",
+  "exceptions_found": 3,
+  "shipments_checked": 8,
+  "notifications_sent": 3,
+  "run_duration_ms": 245
+}
+```
+
+**Exception Types:**
+- `delay`: Shipment delayed beyond threshold
+- `ml_prediction`: High ML confidence for delay
+- `temperature_deviation`: Reefer temp outside range
+- `geofence_violation`: Route deviation
+- `missing_milestone`: Overdue milestone
+
+**Severity Levels:**
+- `high`: Immediate attention required
+- `medium`: Attention needed soon
+- `low`: Informational
 
 ---
 

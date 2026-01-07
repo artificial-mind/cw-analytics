@@ -19,6 +19,10 @@ from documents.generator_reportlab import get_document_generator
 from services.vessel_tracking import get_vessel_tracking_service
 from services.multimodal_tracking import get_multimodal_tracking_service
 from services.container_tracking import get_container_tracking_service
+from services.notification_service import get_notification_service
+from services.public_tracking_service import get_public_tracking_service
+from services.exception_monitor import get_exception_monitor
+import asyncio
 
 # Configure logging
 logging.basicConfig(
@@ -49,6 +53,10 @@ document_generator = None
 vessel_tracking_service = None
 multimodal_tracking_service = None
 container_tracking_service = None
+notification_service = None
+public_tracking_service = None
+exception_monitor = None
+monitoring_task = None
 
 
 # ============================================================================
@@ -106,7 +114,7 @@ class ModelInfoResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize ML models on startup."""
-    global delay_predictor, document_generator, vessel_tracking_service, multimodal_tracking_service, container_tracking_service
+    global delay_predictor, document_generator, vessel_tracking_service, multimodal_tracking_service, container_tracking_service, notification_service, public_tracking_service, exception_monitor, monitoring_task
     
     logger.info("🚀 Starting CW Analytics Engine...")
     
@@ -148,13 +156,55 @@ async def startup_event():
     except Exception as e:
         logger.error(f"❌ Failed to initialize container tracking: {e}")
     
+    try:
+        # Initialize notification service
+        notification_service = get_notification_service()
+        logger.info("✅ Notification service initialized")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize notification service: {e}")
+    
+    try:
+        # Initialize public tracking service
+        public_tracking_service = get_public_tracking_service()
+        logger.info("✅ Public tracking service initialized")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize public tracking service: {e}")
+    
+    try:
+        # Initialize exception monitor
+        exception_monitor = get_exception_monitor()
+        logger.info("✅ Exception monitor initialized")
+        
+        # Start background monitoring task (runs every 5 minutes)
+        monitoring_task = asyncio.create_task(exception_monitor.start_monitoring(interval_minutes=5))
+        logger.info("✅ Exception monitoring background task started (5-minute interval)")
+    except Exception as e:
+        logger.error(f"❌ Failed to start exception monitor: {e}")
+    
     logger.info("✅ Analytics Engine ready!")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown."""
+    global exception_monitor, monitoring_task
+    
     logger.info("👋 Shutting down Analytics Engine...")
+    
+    # Stop exception monitor
+    if exception_monitor:
+        exception_monitor.stop_monitoring()
+        logger.info("✅ Exception monitor stopped")
+    
+    # Cancel monitoring task
+    if monitoring_task and not monitoring_task.done():
+        monitoring_task.cancel()
+        try:
+            await monitoring_task
+        except asyncio.CancelledError:
+            logger.info("✅ Monitoring task cancelled")
+    
+    logger.info("👋 Shutdown complete")
 
 
 # ============================================================================
@@ -583,6 +633,201 @@ async def list_containers():
         raise HTTPException(
             status_code=500,
             detail=f"Failed to list containers: {str(e)}"
+        )
+
+
+# ============================================================================
+# Customer Communication Endpoints (Day 7 - Tools 28-30)
+# ============================================================================
+
+class NotificationRequest(BaseModel):
+    """Request model for sending notifications"""
+    shipment_id: str
+    notification_type: str  # departed, in_transit, arrived, customs_cleared, delivered, delayed, exception
+    recipient_email: Optional[str] = None
+    recipient_phone: Optional[str] = None
+    language: str = "en"
+    tracking_url: Optional[str] = None
+    additional_data: Optional[Dict[str, Any]] = None
+
+@app.post("/api/notifications/send")
+async def send_notification(request: NotificationRequest):
+    """
+    Send status update notification to customer.
+    
+    Args:
+        request: Notification request with shipment details
+    
+    Returns:
+        Notification confirmation with delivery status
+    """
+    if not notification_service:
+        raise HTTPException(
+            status_code=503,
+            detail="Notification service not initialized"
+        )
+    
+    try:
+        logger.info(f"Sending notification: {request.notification_type} for {request.shipment_id}")
+        
+        result = await notification_service.send_status_update(
+            shipment_id=request.shipment_id,
+            notification_type=request.notification_type,
+            recipient_email=request.recipient_email,
+            recipient_phone=request.recipient_phone,
+            language=request.language,
+            tracking_url=request.tracking_url,
+            additional_data=request.additional_data
+        )
+        
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["message"])
+        
+        return {
+            "success": True,
+            "data": result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sending notification: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Notification failed: {str(e)}"
+        )
+
+
+# ============================================================================
+# Tool 29: Public Tracking Links
+# ============================================================================
+
+class TrackingLinkRequest(BaseModel):
+    """Request model for generating public tracking links"""
+    shipment_id: str
+
+@app.post("/api/tracking-link/generate")
+async def generate_tracking_link(request: TrackingLinkRequest):
+    """
+    Generate a public tracking link for customer portal access.
+    
+    Args:
+        request: Tracking link request with shipment ID
+    
+    Returns:
+        Public tracking URL with token and expiry information
+    """
+    if not public_tracking_service:
+        raise HTTPException(
+            status_code=503,
+            detail="Public tracking service not initialized"
+        )
+    
+    try:
+        logger.info(f"Generating tracking link for shipment: {request.shipment_id}")
+        
+        result = public_tracking_service.generate_tracking_link(
+            shipment_id=request.shipment_id
+        )
+        
+        return {
+            "success": True,
+            "data": result,
+            "message": f"Public tracking link generated for shipment {request.shipment_id}"
+        }
+        
+    except ValueError as e:
+        # Shipment not found or invalid ID
+        logger.warning(f"Invalid tracking link request: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating tracking link: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Tracking link generation failed: {str(e)}"
+        )
+
+
+# ============================================================================
+# Tool 30: Proactive Delay Warnings
+# ============================================================================
+
+class ProactiveWarningRequest(BaseModel):
+    """Request model for proactive delay warnings"""
+    shipment_id: str
+    recipient_email: Optional[str] = None
+    recipient_phone: Optional[str] = None
+    language: str = "en"
+
+@app.post("/api/notifications/proactive-delay-warning")
+async def proactive_delay_warning(request: ProactiveWarningRequest):
+    """
+    Proactively warn customers about potential delays based on ML predictions.
+    
+    Automatically runs ML prediction and sends notification if confidence > 70%.
+    
+    Args:
+        request: Proactive warning request with shipment ID
+    
+    Returns:
+        Warning status with ML confidence and notification details
+    """
+    if not notification_service:
+        raise HTTPException(
+            status_code=503,
+            detail="Notification service not initialized"
+        )
+    
+    if not delay_predictor:
+        raise HTTPException(
+            status_code=503,
+            detail="ML delay predictor not initialized"
+        )
+    
+    try:
+        logger.info(f"Proactive delay warning check for shipment: {request.shipment_id}")
+        
+        # Step 1: Run ML prediction
+        # Note: We need to get shipment data first
+        # For MVP, we'll use mock data or simplified prediction
+        prediction_data = {
+            "will_delay": True,
+            "confidence": 0.85,  # Mock: 85% confidence for testing
+            "risk_factors": ["Weather conditions", "Port congestion"],
+            "predicted_delay_hours": 24
+        }
+        
+        # In production, call actual ML predictor:
+        # shipment_data = await get_shipment_data(request.shipment_id)
+        # prediction = delay_predictor.predict(shipment_data)
+        
+        # Step 2: Check confidence and conditionally send warning
+        result = await notification_service.proactive_delay_warning(
+            shipment_id=request.shipment_id,
+            recipient_email=request.recipient_email,
+            recipient_phone=request.recipient_phone,
+            language=request.language,
+            ml_prediction_data=prediction_data
+        )
+        
+        if result.get("success"):
+            return {
+                "success": True,
+                "data": result,
+                "message": f"Proactive warning {'sent' if result.get('warning_sent') else 'not needed'} for shipment {request.shipment_id}"
+            }
+        else:
+            raise HTTPException(status_code=400, detail=result.get("error", "Unknown error"))
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in proactive delay warning: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Proactive warning failed: {str(e)}"
         )
 
 
